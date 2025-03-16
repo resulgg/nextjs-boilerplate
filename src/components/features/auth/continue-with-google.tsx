@@ -17,8 +17,13 @@ const ContinueWithGoogle = () => {
         provider: "google",
       });
     } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to sign in with Google. Please try again.";
+
       console.error("Google sign-in failed:", error);
-      toast.error("Failed to sign in with Google. Please try again.");
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -30,16 +35,18 @@ const ContinueWithGoogle = () => {
       disabled={isLoading}
       size="lg"
       variant="outline"
+      aria-label="Continue with Google"
+      aria-live="polite"
     >
       {isLoading ? (
         <span className="flex items-center justify-center gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Connecting...
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+          <span>Connecting to Google...</span>
         </span>
       ) : (
         <span className="flex items-center justify-center gap-2">
-          <GoogleIcon />
-          Continue with Google
+          <GoogleIcon aria-hidden="true" />
+          <span>Continue with Google</span>
         </span>
       )}
     </Button>

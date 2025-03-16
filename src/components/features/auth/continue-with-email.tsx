@@ -19,43 +19,48 @@ import {
 import { Input } from "@/components/ui/input";
 import { emailOtp } from "@/lib/auth-client";
 
-const signupSchema = z.object({
+const emailSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
 });
 
-type SignupFormValues = z.infer<typeof signupSchema>;
+type EmailFormValues = z.infer<typeof emailSchema>;
 
 const ContinueWithEmail = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
+  const form = useForm<EmailFormValues>({
+    resolver: zodResolver(emailSchema),
     defaultValues: {
       email: "",
     },
   });
 
-  const onSubmit = async (data: SignupFormValues) => {
+  const onSubmit = async (data: EmailFormValues) => {
     try {
       setIsLoading(true);
       const res = await emailOtp.sendVerificationOtp({
         email: data.email,
         type: "sign-in",
       });
+
       if (res.error) {
         throw new Error(res.error.message);
       }
+
       if (res.data.success) {
-        // Store email in localStorage for backup
-        localStorage.setItem("verificationEmail", data.email);
+        // Use sessionStorage instead of localStorage for better security
+        sessionStorage.setItem("verificationEmail", data.email);
         // Redirect to verify-email page with email as query parameter
         router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
       }
     } catch (error) {
-      toast.error(
-        "Failed to send verification code, please try signing up with Google."
-      );
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to send verification code, please try signing up with Google.";
+
+      toast.error(errorMessage);
       console.error("Failed to send verification code", error);
     } finally {
       setIsLoading(false);
@@ -64,35 +69,48 @@ const ContinueWithEmail = () => {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-4"
+        aria-label="Email sign in form"
+      >
         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel htmlFor="email-input">Email</FormLabel>
               <FormControl>
                 <Input
+                  id="email-input"
                   placeholder="you@example.com"
                   type="email"
                   disabled={isLoading}
+                  aria-describedby="email-error"
+                  autoComplete="email"
                   {...field}
                 />
               </FormControl>
-              <FormMessage />
+              <FormMessage id="email-error" />
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading} size="lg" className="w-full">
+        <Button
+          type="submit"
+          disabled={isLoading}
+          size="lg"
+          className="w-full"
+          aria-live="polite"
+        >
           {isLoading ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="animate-spin" />
-              Loading...
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+              <span>Sending verification code...</span>
             </span>
           ) : (
-            <span className="flex items-center gap-2">
-              <Mail className="h-5 w-full" />
-              Continue with Email
+            <span className="flex items-center justify-center gap-2">
+              <Mail className="h-5 w-5" aria-hidden="true" />
+              <span>Continue with Email</span>
             </span>
           )}
         </Button>

@@ -49,7 +49,7 @@ const VerifyEmail = ({
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState<string>("");
-  const [countdown, setCountdown] = useState(300);
+  const [countdown, setCountdown] = useState(60); // Reduced from 300 to 60 seconds
   const [canResend, setCanResend] = useState(false);
 
   const form = useForm<VerifyEmailFormValues>({
@@ -66,9 +66,15 @@ const VerifyEmail = ({
     if (emailFromUrl) {
       setEmail(emailFromUrl);
     } else {
-      // Fallback to localStorage if not in URL
-      const storedEmail = localStorage.getItem("verificationEmail") || "";
+      // Fallback to sessionStorage if not in URL
+      const storedEmail = sessionStorage.getItem("verificationEmail") || "";
       setEmail(storedEmail);
+
+      // If no email is found, redirect to sign-in
+      if (!storedEmail) {
+        toast.error("Email not found. Please try signing in again.");
+        router.push("/sign-in");
+      }
     }
 
     // Set up countdown for resend button
@@ -80,7 +86,7 @@ const VerifyEmail = ({
     } else if (countdown === 0 && !canResend) {
       setCanResend(true);
     }
-  }, [countdown, canResend, searchParams]);
+  }, [countdown, canResend, searchParams, router]);
 
   const onSubmit = async (data: VerifyEmailFormValues) => {
     try {
@@ -101,15 +107,24 @@ const VerifyEmail = ({
         throw new Error(response.error.message || "Verification failed");
       }
 
+      // Clear the stored email from sessionStorage after successful verification
+      sessionStorage.removeItem("verificationEmail");
+
       toast.success("Email verified successfully!");
 
       // Redirect to dashboard or home page after successful verification
       router.push("/dashboard");
     } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to verify email. Please check your code and try again.";
+
       console.error("Verification failed:", error);
-      toast.error(
-        "Failed to verify email. Please check your code and try again."
-      );
+      toast.error(errorMessage);
+
+      // Reset the form if verification fails
+      form.reset({ otp: "" });
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +140,6 @@ const VerifyEmail = ({
         return;
       }
 
-      // Call your resend OTP function here
       const res = await emailOtp.sendVerificationOtp({
         email: email,
         type: "sign-in",
@@ -139,18 +153,30 @@ const VerifyEmail = ({
       setCountdown(60);
       setCanResend(false);
     } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to resend verification code. Please try again.";
+
       console.error("Failed to resend verification code:", error);
-      toast.error("Failed to resend verification code. Please try again.");
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
+    <div
+      className={cn("flex flex-col gap-6", className)}
+      {...props}
+      role="main"
+      aria-labelledby="verify-email-title"
+    >
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Verify your email</CardTitle>
+          <CardTitle id="verify-email-title" className="text-xl">
+            Verify your email
+          </CardTitle>
           <CardDescription>
             We&apos;ve sent a verification code to{" "}
             <span className="font-medium">{email || "your email"}</span>
@@ -162,21 +188,24 @@ const VerifyEmail = ({
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-6"
+                aria-label="Email verification form"
               >
                 <FormField
                   control={form.control}
                   name="otp"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="sr-only">
+                      <FormLabel htmlFor="otp-input" className="sr-only">
                         Verification Code
                       </FormLabel>
                       <FormControl>
                         <InputOTP
+                          id="otp-input"
                           pattern="[1-9][0-9]*|0"
                           maxLength={6}
                           disabled={isLoading}
                           containerClassName="justify-center gap-2"
+                          aria-describedby="otp-error"
                           {...field}
                           value={field.value}
                           onChange={(value) => field.onChange(value)}
@@ -191,7 +220,7 @@ const VerifyEmail = ({
                           </InputOTPGroup>
                         </InputOTP>
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage id="otp-error" />
                     </FormItem>
                   )}
                 />
@@ -200,16 +229,20 @@ const VerifyEmail = ({
                   disabled={isLoading}
                   size="lg"
                   className="w-full"
+                  aria-live="polite"
                 >
                   {isLoading ? (
                     <span className="flex items-center justify-center gap-2">
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Verifying...
+                      <Loader2
+                        className="h-5 w-5 animate-spin"
+                        aria-hidden="true"
+                      />
+                      <span>Verifying...</span>
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-2">
-                      <CheckCircle className="h-5 w-5" />
-                      Verify Email
+                      <CheckCircle className="h-5 w-5" aria-hidden="true" />
+                      <span>Verify Email</span>
                     </span>
                   )}
                 </Button>
@@ -223,11 +256,12 @@ const VerifyEmail = ({
                   className="p-0 h-auto font-normal underline underline-offset-4"
                   onClick={handleResendCode}
                   disabled={isLoading}
+                  aria-live="polite"
                 >
                   Resend code
                 </Button>
               ) : (
-                <span className="text-muted-foreground">
+                <span className="text-muted-foreground" aria-live="polite">
                   Resend code in {countdown}s
                 </span>
               )}
